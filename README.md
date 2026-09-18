@@ -1,184 +1,330 @@
-# Synthetic Human Face Generator — DCGAN
+Synthetic Human Face Generator using DCGAN
 
-A Deep Convolutional GAN that learns the distribution of human face images
-and generates new, synthetic faces from random latent noise. Built with
-PyTorch, following the architectural guidelines from Radford et al. (2015),
-*Unsupervised Representation Learning with Deep Convolutional GANs*.
+A Deep Convolutional Generative Adversarial Network (DCGAN) built with PyTorch to generate realistic synthetic human face images from random latent noise.
 
-## Project Structure
+The project implements both a Generator and Discriminator using convolutional neural networks and follows the architectural principles introduced in the DCGAN paper by Radford et al.
 
-```
+Project Overview
+
+The goal of this project was to understand and implement how Generative Adversarial Networks can learn the distribution of real images and generate new images that resemble the training dataset.
+
+The model consists of two neural networks:
+
+Generator (G): Takes a random noise vector and generates a synthetic face.
+Discriminator (D): Classifies an input image as real or generated.
+
+Both networks are trained adversarially, where the Generator continuously tries to fool the Discriminator while the Discriminator learns to distinguish real images from generated ones.
+
+Overall Pipeline
+Random Noise (z)
+       ↓
+   Generator
+       ↓
+Synthetic Face
+       ↓
+   Discriminator
+       ↓
+Real / Fake
+       ↑
+   Real Face
+Features
+DCGAN architecture implemented from scratch using PyTorch
+Convolutional Generator and Discriminator
+64×64 RGB face generation
+Batch Normalization for training stability
+ReLU activation in Generator
+LeakyReLU activation in Discriminator
+Tanh activation for generated images
+Adam optimizer with β1 = 0.5
+One-sided label smoothing
+Checkpoint saving during training
+Generated sample grids after training epochs
+Generator and Discriminator loss visualization
+Discriminator confidence analysis
+Latent-space interpolation
+Support for continuing training from checkpoints
+Project Structure
 dcgan_face_generator/
-├── config.py           # all hyperparameters in one place
-├── model.py             # Generator + Discriminator (CNN architectures)
-├── dataset.py           # data loading (ImageFolder or flat folder of images)
-├── train.py              # training loop
-├── generate.py           # generate faces / interpolate latent space from a checkpoint
-├── utils.py               # sample-grid saving, loss plotting, training-history logging
-├── requirements.txt
-├── data/                  # put your face dataset here (see Dataset section)
-├── checkpoints/            # saved model weights (created during training)
+│
+├── config.py              # Model and training hyperparameters
+├── model.py               # Generator and Discriminator
+├── dataset.py             # Dataset loading and preprocessing
+├── train.py               # GAN training loop
+├── generate.py            # Face generation and interpolation
+├── utils.py               # Visualization and training utilities
+├── requirements.txt        # Python dependencies
+│
+├── data/
+│   └── images/             # Face dataset
+│
+├── checkpoints/             # Saved model checkpoints
+│
 └── outputs/
-    ├── samples/             # per-epoch generated sample grids
-    └── plots/                 # loss curves, D-confidence plots, history.json
-```
+    ├── samples/             # Generated images
+    └── plots/               # Loss and discriminator plots
+Technologies Used
+Python
+PyTorch
+Torchvision
+NumPy
+Matplotlib
+Pillow
+Dataset
 
-## 1. Setup
+The model can be trained on a face dataset such as CelebA, FFHQ, or LFW.
 
-```bash
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
+The images are resized to 64×64 pixels and normalized to the range [-1, 1], matching the Generator's Tanh output.
 
-GPU (CUDA) is strongly recommended — DCGAN on 64x64 faces is trainable on
-CPU only for tiny experiments.
+Example structure:
 
-## 2. Dataset
-
-Any face dataset works as long as images are roughly cropped to faces.
-Common choices:
-
-- **CelebA** (~200k celebrity faces) — https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html
-- **FFHQ** (70k high-quality faces) — https://github.com/NVlabs/ffhq-dataset
-- **LFW** (Labeled Faces in the Wild) — smaller, good for quick experiments
-
-Place images so `dataset.py` can find them. Either layout works:
-
-```
 data/
-└── images/            # one subfolder is enough (ImageFolder convention)
+└── images/
     ├── img_0001.jpg
     ├── img_0002.jpg
+    ├── img_0003.jpg
     └── ...
-```
+Model Architecture
+Generator
 
-or a flat folder of images directly under `data/` (auto-detected fallback).
+The Generator starts with a 100-dimensional latent noise vector.
 
-## 3. Train
+z ∈ R¹⁰⁰
+   ↓
+4×4 feature map
+   ↓
+8×8
+   ↓
+16×16
+   ↓
+32×32
+   ↓
+64×64 RGB Image
 
-```bash
+The Generator uses ConvTranspose2d layers to progressively increase the spatial resolution.
+
+Hidden layers use:
+
+BatchNorm → ReLU
+
+The final layer uses:
+
+Tanh
+
+so that the generated image values remain in the same [-1, 1] range as the normalized training images.
+
+Discriminator
+
+The Discriminator performs the opposite operation.
+
+64×64×3 Image
+      ↓
+32×32
+      ↓
+16×16
+      ↓
+8×8
+      ↓
+4×4
+      ↓
+Real / Fake Probability
+
+It uses strided convolutional layers to progressively reduce the spatial dimensions.
+
+Hidden layers use:
+
+Conv → BatchNorm → LeakyReLU(0.2)
+
+The first discriminator layer does not use BatchNorm, following the DCGAN architecture guidelines.
+
+Training
+
+The Generator and Discriminator are trained together as an adversarial game.
+
+Discriminator
+
+The Discriminator learns to:
+
+classify real images as real
+classify generated images as fake
+Generator
+
+The Generator learns to produce images that the Discriminator classifies as real.
+
+Conceptually:
+
+Generator:
+Noise → Fake Image → Discriminator → "Real"
+
+Discriminator:
+Real Image → "Real"
+Fake Image → "Fake"
+
+As training progresses, the Generator improves its ability to produce faces that resemble the training distribution.
+
+Training Configuration
+
+Example configuration:
+
+Parameter	Value
+Image Size	64×64
+Latent Dimension	100
+Optimizer	Adam
+Learning Rate	0.0002
+Adam β1	0.5
+Batch Size	128
+Generator Activation	ReLU + Tanh
+Discriminator Activation	LeakyReLU(0.2)
+Real Label	0.9
+
+Training can be started using:
+
 python train.py --data_dir ./data/images --epochs 50 --batch_size 128
-```
+Training Stabilization
 
-Key flags (all default to `config.py` values):
+Several techniques were incorporated to make adversarial training more stable:
 
-| Flag | Meaning |
-|---|---|
-| `--epochs` | number of passes over the dataset |
-| `--batch_size` | images per training step |
-| `--lr` | learning rate for both G and D (paper default: 2e-4) |
-| `--image_size` | output resolution (default 64x64) |
-| `--latent_dim` | size of the noise vector z (default 100) |
-| `--resume` | path to a `.pt` checkpoint to continue training |
+1. Batch Normalization
 
-During training you'll see, per logged batch:
+BatchNorm is used in the hidden layers to keep activations within a stable range during training.
 
-```
-Loss_D: 0.55  Loss_G: 2.10  D(x): 0.83  D(G(z)): 0.12 / 0.19
-```
+2. Adam with β1 = 0.5
 
-- **D(x)** — Discriminator's average confidence that *real* images are real (want ≈ 0.5–0.9, not pinned at 1.0)
-- **D(G(z))** — its confidence that *fake* images are real, before/after G's update (want climbing toward 0.5 over training, not stuck at 0)
+A lower β1 value is commonly used for GAN training to reduce excessive momentum and improve training stability.
 
-## 4. Generate
+3. One-Sided Label Smoothing
 
-```bash
-# Grid of 64 new random faces
-python generate.py --checkpoint ./checkpoints/dcgan_epoch_050.pt --num_images 64
+Real labels are set to 0.9 instead of 1.0.
 
-# Also save each face as its own file
-python generate.py --checkpoint ./checkpoints/dcgan_epoch_050.pt --num_images 16 --individual
+This prevents the Discriminator from becoming excessively confident and helps maintain useful gradients for the Generator.
 
-# Latent-space interpolation between two random faces (checks manifold smoothness)
-python generate.py --checkpoint ./checkpoints/dcgan_epoch_050.pt --interpolate --steps 10
-```
+4. LeakyReLU
 
-## 5. Architecture
+The Discriminator uses LeakyReLU with a negative slope of 0.2 to allow gradients to continue flowing even when activations are negative.
 
-**Generator** (z ∈ R¹⁰⁰ → 64×64×3 image): a stack of 5 transposed
-convolutions that upsample a 1×1 latent vector through 4×4 → 8×8 → 16×16 →
-32×32 → 64×64 feature maps, with BatchNorm + ReLU at each hidden layer and
-Tanh on the output (matching the [-1, 1] normalized image range).
+5. DCGAN Initialization
 
-**Discriminator** (64×64×3 image → real/fake probability): the mirror
-image — a stack of 5 strided convolutions that downsample 64×64 → 32×32 →
-16×16 → 8×8 → 4×4 → 1×1, with LeakyReLU(0.2) at each hidden layer and no
-BatchNorm on the very first layer (per the original paper's finding that
-this destabilizes training).
+Network weights are initialized using a normal distribution centered around zero with a standard deviation of 0.02.
 
-Both networks are fully convolutional — no pooling layers, no fully
-connected hidden layers — per the DCGAN paper's guidelines for training
-stability at this scale.
+Generated Results
 
-## 6. Training Stabilization Techniques Used
+During training, generated images are periodically saved to monitor how the Generator improves.
 
-| Technique | Why |
-|---|---|
-| Strided/fractional-strided convs instead of pooling | Lets the network learn its own spatial up/down-sampling instead of a fixed, lossy operator |
-| BatchNorm in G and D (except G output, D input) | Keeps activations in a healthy range and prevents G from collapsing all outputs to a single point |
-| Adam with β1 = 0.5 (not the default 0.9) | The default momentum causes oscillation/instability in adversarial training |
-| One-sided label smoothing (real label = 0.9) | Prevents D from becoming overconfident, which would starve G of useful gradient |
-| LeakyReLU(0.2) in D | Avoids the "dying ReLU" problem when gradients flow back through D into G |
-| Weight init from N(0, 0.02) | The paper-recommended init; measurably reduces early-training divergence |
-| `drop_last=True` in the DataLoader | Avoids a tiny, unrepresentative final batch destabilizing BatchNorm statistics |
+The expected progression is:
 
-## 7. Analyzing Training Behavior
+Early Training
+Random / noisy images
+        ↓
+Basic face-like structures
+        ↓
+Recognizable facial features
+        ↓
+More realistic synthetic faces
 
-After training, `outputs/plots/` contains:
+Sample grids are saved in:
 
-- **`loss_curve.png`** — G and D loss over every training iteration
-- **`d_confidence.png`** — D(x) vs D(G(z)) over time, with the ideal 0.5 equilibrium line
-- **`history.json`** — raw numbers behind both plots, for custom analysis
+outputs/samples/
+Training Analysis
 
-### What healthy training looks like
-Both losses oscillate rather than converge — GANs don't have a single loss
-that monotonically decreases, because G and D are playing a minimax game
-against a moving target. The useful signal is **D(x)** and **D(G(z))**
-drifting toward **0.5** over time: that means D can no longer easily tell
-real from fake, which is the actual goal.
+I monitored the training process using:
 
-### Training Instability
-**Symptom:** G_loss or D_loss spikes erratically, or one loss diverges to
-near-zero/near-infinity.
-**Typical cause:** D has become far too strong relative to G (or vice
-versa), so gradients either vanish or explode.
-**What to check first:** look at `d_confidence.png` — if D(x) is pinned
-near 1.0 and D(G(z)) is pinned near 0.0 for many epochs, D has "won" and
-G is receiving little useful gradient. Mitigations already built in
-(label smoothing, `β1=0.5`) reduce this; if it still happens, try
-lowering D's learning rate relative to G's, or updating G more than once
-per D step.
+Generator loss
+Discriminator loss
+Discriminator confidence on real images D(x)
+Discriminator confidence on generated images D(G(z))
+Generated image samples across epochs
 
-### Mode Collapse
-**Symptom:** loss curves can look fine, but the generated sample grids
-(`outputs/samples/epoch_*.png`) show the same face, or a handful of nearly
-identical faces, repeated across the grid — G has found a small number of
-outputs that reliably fool the current D and stopped exploring.
-**How to detect it here:**
-1. Visually scan consecutive sample grids for repeated faces.
-2. Run `generate.py --interpolate` — a collapsed model produces
-   interpolations that jump abruptly between a few fixed points rather
-   than morphing smoothly.
-**Mitigations to try:** reduce D's relative capacity, add noise to D's
-inputs, use a minibatch-discrimination layer, or switch to a Wasserstein
-loss (WGAN-GP) if collapse persists — this is the most common reported
-DCGAN failure mode and one of the main motivations behind later GAN
-variants.
+The losses are not expected to decrease monotonically because GAN training is an adversarial optimization process rather than a conventional single-objective optimization problem.
 
-## 8. Suggested Report Sections (for a project write-up)
+The generated samples provide an important qualitative measure of whether the Generator is learning meaningful facial features.
 
-1. Introduction & problem statement
-2. Dataset description and preprocessing
-3. DCGAN architecture (include the diagrams/tables above)
-4. Training setup and hyperparameters
-5. Results: sample grids across epochs (qualitative progression)
-6. Loss curves and discriminator-confidence analysis
-7. Discussion of instability/mode collapse observed (or avoided) in your run
-8. Limitations and possible extensions (conditional DCGAN, StyleGAN comparison, FID scoring)
+Mode Collapse
 
-## References
+One of the major challenges considered in this project is mode collapse.
 
-- Radford, A., Metz, L., & Chintala, S. (2015). *Unsupervised Representation
-  Learning with Deep Convolutional Generative Adversarial Networks.* arXiv:1511.06434
-- Goodfellow, I. et al. (2014). *Generative Adversarial Networks.* arXiv:1406.2661
+Mode collapse occurs when the Generator produces very similar images for different latent vectors.
+
+For example:
+
+z₁ → Face A
+z₂ → Face A
+z₃ → Face A
+z₄ → Face A
+
+instead of generating diverse faces.
+
+I analyzed generated sample grids and latent-space interpolation to check whether the Generator was producing diverse outputs.
+
+Potential approaches for improving severe mode collapse include:
+
+adjusting Generator/Discriminator learning rates
+adding noise to Discriminator inputs
+minibatch discrimination
+using improved GAN objectives such as WGAN-GP
+Latent Space Interpolation
+
+The project also supports interpolation between two random latent vectors.
+
+z₁ → Face A
+
+z₁ ───────────────→ z₂
+
+                   ↓
+
+                Face B
+
+Intermediate latent vectors are generated between z₁ and z₂, allowing the model's learned representation to be visualized as a smooth transition between generated faces.
+
+Run:
+
+python generate.py \
+    --checkpoint ./checkpoints/dcgan_epoch_050.pt \
+    --interpolate \
+    --steps 10
+Generating New Faces
+
+Generate a grid of synthetic faces:
+
+python generate.py \
+    --checkpoint ./checkpoints/dcgan_epoch_050.pt \
+    --num_images 64
+
+Generate individual images:
+
+python generate.py \
+    --checkpoint ./checkpoints/dcgan_epoch_050.pt \
+    --num_images 16 \
+    --individual
+What I Learned
+
+Through this project, I gained practical understanding of:
+
+GAN architecture and adversarial training
+Generator vs. Discriminator objectives
+DCGAN architecture
+Transposed convolution for image generation
+Convolutional feature extraction
+Batch Normalization
+Latent-space representations
+GAN loss behavior
+Training instability
+Mode collapse
+Checkpoint-based model training
+Qualitative evaluation of generative models
+Future Improvements
+
+Possible extensions include:
+
+Train on higher-resolution images
+Conditional DCGAN for controlled face generation
+Quantitative evaluation using FID
+Compare DCGAN with WGAN-GP
+Experiment with different latent dimensions
+Improve generated image resolution
+Compare against modern architectures such as StyleGAN
+References
+
+Radford, A., Metz, L., & Chintala, S. (2015).
+Unsupervised Representation Learning with Deep Convolutional Generative Adversarial Networks.
+
+Goodfellow, I. et al. (2014).
+Generative Adversarial Networks.
