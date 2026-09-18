@@ -1,4 +1,4 @@
-Synthetic Human Face Generator using DCGAN
+Synthetic Human Face Generator using DCGAN 
 
 A Deep Convolutional Generative Adversarial Network (DCGAN) built with PyTorch to generate realistic synthetic human face images from random latent noise.
 
